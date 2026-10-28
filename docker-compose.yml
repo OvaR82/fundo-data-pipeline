@@ -1,0 +1,35 @@
+name: fundo-pipeline
+
+x-sa-password: &sa_password ${MSSQL_SA_PASSWORD:-Fundo_Local_2026}
+
+services:
+  sqlserver:
+    # Source system stand-in. Pinned CU so a clean checkout gets the same engine.
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: *sa_password
+    ports:
+      - "14333:1433"   # optional: inspect the source from the host (SSMS / Azure Data Studio)
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  pipeline:
+    # One-shot CLI container: `docker compose run --rm pipeline <command>`.
+    # In the "cli" profile so `docker compose up` only starts the database.
+    build: .
+    profiles: ["cli"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_HOST: sqlserver
+      MSSQL_PORT: "1433"
+      MSSQL_SA_PASSWORD: *sa_password
+    volumes:
+      - ./data:/app/data   # the DuckDB warehouse file lands in ./data on the host
