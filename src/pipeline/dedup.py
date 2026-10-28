@@ -208,8 +208,11 @@ def print_summary(wh) -> None:
     show("national id status", "SELECT rut_status, count(*) FROM core.customer_quality GROUP BY 1 ORDER BY 1")
     show("email status", "SELECT email_status, count(*) FROM core.customer_quality GROUP BY 1 ORDER BY 1")
     show("phone status", "SELECT phone_status, count(*) FROM core.customer_quality GROUP BY 1 ORDER BY 1")
-    golden = wh.execute("SELECT count(*), sum(member_count) FROM core.dim_customer").fetchone()
+    active, merged, excluded = wh.execute("""
+        SELECT count(*), count(*) FILTER (WHERE rule = 'rut_match'), count(*) FILTER (WHERE rule = 'excluded_test')
+        FROM core.customer_xref""").fetchone()
+    golden = wh.execute("SELECT count(*) FROM core.dim_customer").fetchone()[0]
     moved = wh.execute("SELECT count(*) FROM core.cards_resolved "
                        "WHERE golden_customer_id <> source_customer_id").fetchone()[0]
-    print(f"  {golden[1]:,} customer records -> {golden[0]:,} golden customers; "
+    print(f"  {active:,} active records - {merged:,} merged - {excluded:,} test = {golden:,} golden customers; "
           f"{moved:,} cards re-attributed to a surviving customer")

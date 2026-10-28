@@ -146,6 +146,8 @@ Running `merge-source` again is a no-op (0 rows re-owned) until new duplicates a
 ```bash
 docker compose run --rm pipeline test
 ```
+They need no database (pure functions and an in-memory DuckDB), so they also run on every push
+in GitHub Actions (`.github/workflows/test.yml`).
 
 ## Clean up
 
@@ -168,12 +170,16 @@ pipeline notices (the source's Change Tracking version goes backwards), `check` 
 ```
 docker-compose.yml        SQL Server + one-shot pipeline container
 sql/source/               source DDL: schema + Change Tracking, duplicate prevention (additive)
+src/pipeline/cli.py       every command, and the 9-step demo
+src/pipeline/db.py        connections (SQL Server, DuckDB) and small helpers
 src/pipeline/config.py    per-table load strategy (the one place that decides it)
 src/pipeline/load.py      extract (CT / watermark / snapshot) + atomic apply
 src/pipeline/checks.py    reconciliation
+src/pipeline/breakit.py   damage the warehouse on purpose
+src/pipeline/report.py    measured transfer: full copy vs incremental
 src/pipeline/identity.py  identity rules (pure functions)
 src/pipeline/dedup.py     golden customers, review queue
 src/pipeline/prevent.py   merge-source (source-side prevention)
 src/pipeline/seed.py      synthetic data and its traps;  simulate.py: one business day
-tests/                    unit tests
+tests/                    unit tests (also run by GitHub Actions on every push)
 ```

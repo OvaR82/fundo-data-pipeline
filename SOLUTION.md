@@ -53,7 +53,7 @@ The 1 % is my input (the simulator's change rate), not a finding. What is measur
 The corroboration matters: a shared RUT whose name and birth date both disagree is a typo, not one person, and goes to review. **Review corrected me here:** my first version also accepted "same surname + same first initial", which would merge *José Pérez* with *Javiera Pérez* on a mistyped RUT. It was removed and a test pins the case.
 
 ### Results [measured, fresh run]
-- 4,867 records → **4,703 golden customers**: 164 merged by RUT, 6 test accounts excluded.
+- 4,873 active records − 164 merged by RUT − 6 test accounts excluded = **4,703 golden customers**.
 - Review queue: 3 groups with money on several records, 2 RUT collisions with conflicting attributes, 1 test-looking account with money, 22 suggestive matches (10 email, 8 phone, 4 name + birth date).
 - **The data corrected me:** I planted 2 "both funded" groups; the run found 3. The third is a RUT typo between two different people who both hold advances. It goes to review (safe), but the money rule fires before corroboration, so its label overstates certainty. Known, not fixed.
 
@@ -68,7 +68,7 @@ The corroboration matters: a shared RUT whose name and birth date both disagree 
 ### Stop the same duplicate being created again (`merge-source`)
 `merge-source` runs `load` + `dedup` first, so decisions reflect the source right now. Additive DDL (`010_prevent_dups.sql`) adds a **bounded, normalized, persisted column `national_id_norm`** (the fix for the bad schema choice, original column untouched) and an append-only `customer_merge_log`. Then, in **one source transaction**: cards and non-funded advances move to the survivor, losers get `merged_into_customer_id`, test and review cases are flagged, every changed value is logged first, and the **unique filtered index** on active customers is created last, so any remaining collision rolls everything back. Nothing is deleted. [measured] Before: the simulator's re-typed RUT prints `CREATED a duplicate`; after: `REJECTED`. A second run is a no-op.
 
-The log is the way back (one `UPDATE` per row); an automated undo command cost 50 lines of edge cases, so I removed it. **Known hole:** the 36 records on `review_hold` (including invalid RUTs) are outside the index. In production the merge and the constraint belong to the app team, with validation at sign-up; this shows the mechanism, not the rollout.
+The normalization exists twice, in Python (`identity.py`, with check-digit validation) and in T-SQL (the computed column, without it), and no test compares them; that is why the index only covers ids Python marked valid, and everything else is put on `review_hold` instead of trusted. The log is the way back (one `UPDATE` per row); an automated undo command cost 50 lines of edge cases, so I removed it. **Known hole:** the 36 records on `review_hold` (including invalid RUTs) are outside the index. In production the merge and the constraint belong to the app team, with validation at sign-up; this shows the mechanism, not the rollout.
 
 ---
 

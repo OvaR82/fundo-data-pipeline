@@ -18,6 +18,7 @@ from .config import APPEND_WATERMARK, CHANGE_TRACKING, TABLES, Table
 from .load import ensure_warehouse, get_state
 
 MAX_KEYS_SHOWN = 8
+MAX_DRILL = 20
 
 
 def _fmt_keys(keys) -> str:
@@ -89,8 +90,10 @@ def reconcile(src, wh, t: Table) -> tuple[str, str]:
         bad_buckets = sorted(b for b in fs.keys() | fw.keys() if fs.get(b) != fw.get(b))
         if not bad_buckets:
             return "PASS", f"{len(fs)} key buckets of {t.bucket_size:,} match (count, keys, amounts, timestamps)"
+        # Drill into at most MAX_DRILL buckets: enough to name the keys, without turning a large
+        # failure into a full copy. The message says when keys come from a subset.
         ranges = " OR ".join(f"({t.pk} >= {b * t.bucket_size} AND {t.pk} < {(b + 1) * t.bucket_size})"
-                             for b in bad_buckets[:20])
+                             for b in bad_buckets[:MAX_DRILL])
         s, w = _rows(src, wh, t, ranges, ranges)
     missing = s.keys() - w.keys()
     unexpected = w.keys() - s.keys()
@@ -99,7 +102,8 @@ def reconcile(src, wh, t: Table) -> tuple[str, str]:
         return "PASS", "all rows match"
     parts = []
     if bad_buckets is not None:
-        parts.append(f"{len(bad_buckets)} bucket(s) differ")
+        sampled = f" (keys below from the first {MAX_DRILL})" if len(bad_buckets) > MAX_DRILL else ""
+        parts.append(f"{len(bad_buckets)} bucket(s) differ{sampled}")
     if missing:
         parts.append(f"MISSING in warehouse {len(missing)}: [{_fmt_keys(missing)}]")
     if unexpected:

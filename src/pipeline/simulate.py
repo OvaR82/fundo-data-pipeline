@@ -85,6 +85,8 @@ def simulate_day(conn) -> None:
             print(f"  {label:<20} {cur.rowcount:>5} rows")
 
     # The application registers an existing, active person again, RUT typed differently.
+    # Its own statement, outside the day's transaction: a rejection must not undo the day.
+    cur = conn.cursor()
     candidates = db.query(conn, """
         SELECT TOP (50) national_id, first_name, last_name, email, phone, birth_date
         FROM dbo.customers WHERE national_id IS NOT NULL AND dedup_status IS NULL ORDER BY NEWID()""")
